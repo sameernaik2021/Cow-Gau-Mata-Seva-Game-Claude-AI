@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gau Seva – A Gaushala Journey</title>
+<style>
+:root{--bg:#f6f1e6;--card:#fffdf8;--ink:#2b2418;--mut:#6b6150;--acc:#d9731a;--acc2:#2f7d4f;--line:#e2d8c3;--bad:#b5382c;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17140f;--card:#221e17;--ink:#f1e9d6;--mut:#a89d86;--line:#3a3326;--acc:#f0902f;--acc2:#58b57d;--bad:#e5695c}}
+:root[data-theme="dark"]{--bg:#17140f;--card:#221e17;--ink:#f1e9d6;--mut:#a89d86;--line:#3a3326;--acc:#f0902f;--acc2:#58b57d;--bad:#e5695c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{max-width:900px;margin:0 auto;padding:10px}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+h1{font-size:18px;margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:13px;white-space:nowrap}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--acc2);width:0;transition:width .2s}
+#tb{margin:8px 0}#tb i{background:var(--acc)}
+#stage{position:relative;border:2px solid var(--line);border-radius:12px;overflow:hidden;background:#8fc66b;touch-action:none}
+canvas{display:block;width:100%;height:auto;aspect-ratio:8/5}
+#toast{position:absolute;left:50%;top:10px;transform:translateX(-50%);max-width:90%;background:rgba(30,25,15,.88);color:#fff;padding:6px 12px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;text-align:center}
+#toast.on{opacity:1}
+.ov{position:absolute;inset:0;background:rgba(20,15,5,.6);display:flex;align-items:center;justify-content:center;padding:10px;overflow:auto}
+.card{background:var(--card);color:var(--ink);border-radius:12px;padding:16px;max-width:560px;width:100%;max-height:100%;overflow:auto;border:1px solid var(--line)}
+.card h2{margin:0 0 6px;font-size:20px}.card p{margin:6px 0}
+.badge{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--acc);color:#fff;margin-right:4px}
+.sa{color:var(--mut);font-style:italic}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:8px 12px;min-height:40px}
+button:hover{border-color:var(--acc)}button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+#dock{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+@media(min-width:700px){#dock{grid-template-columns:1fr 1.2fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:92px}
+.need{display:grid;grid-template-columns:70px 1fr;gap:6px;align-items:center;font-size:13px;margin:2px 0}
+.need .bar i.low{background:var(--bad)}
+#acts{display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start}
+.ency{border-top:1px solid var(--line);padding:8px 0}.ency.lock{opacity:.55}
+small{color:var(--mut)}
+</style>
+</head>
+<body>
+<div id="app">
+ <header>
+  <h1>🐄 Gau Seva — A Gaushala Journey</h1>
+  <div class="chips">
+   <span class="chip" id="cDay">Day 1</span>
+   <span class="chip" id="cWel">Welfare 0%</span>
+   <span class="chip" id="cSeva">Seva 0</span>
+   <span class="chip" id="cKnow">Knowledge 0/20</span>
+   <span class="chip" id="cInv">🌾0 💧0 💊0</span>
+   <button id="bEncy" title="Encyclopedia">📖</button>
+   <button id="bPause" title="Pause (P)">⏸</button>
+  </div>
+ </header>
+ <div class="bar" id="tb" aria-label="Day progress"><i id="tbar"></i></div>
+ <div id="stage">
+  <canvas id="cv" aria-label="Gaushala scene"></canvas>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="ov" class="ov" role="dialog" aria-modal="true" hidden><div class="card" id="card"></div></div>
+ </div>
+ <section id="dock">
+  <div class="panel" id="info"></div>
+  <div class="panel"><div id="acts"></div></div>
+ </section>
+ <p><small>Move: WASD / arrows, or tap the field. Walk near a cow or a store, then use the buttons (keys 1–6 for cow actions, E to collect). P / Esc pauses. Progress saves automatically in this browser.</small></p>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ============ CONTENT SYSTEM (data-driven; edit without touching gameplay code) ============ */
+// [title, Sanskrit term, category, kind, activity, unlockRule, learning]
+const RAW = [
+['Cow Seva','Gau Seva','Core Seva','Cultural','care_for_cow','start','In Hindu tradition, caring for cows is seen as seva: selfless service to a living being, offered with devotion and without expecting a reward.'],
+['Cow as Mother','Gau Mata','Cultural Context','Cultural','groom','groom:1','Many Hindus call the cow Gau Mata (Mother Cow) because, like a mother, she nourishes people with milk and asks little in return.'],
+['Sacred Status','Pavitra','Cultural Context','Cultural','feed','feed:1','The cow holds a revered place in Hindu life, in rituals, festivals and daily habits. Customs and the degree of reverence vary across regions and communities.'],
+['Vedic References','Veda','Knowledge','Scriptural','read','day:2','Cows are mentioned often in Vedic hymns. The Rigveda uses the word aghnya for the cow, commonly translated as "not to be harmed".'],
+['Abundance','Dhana','Resources','Cultural','collect','collect:3','In agrarian societies cattle were a measure of wealth and security. The hay, water and medicine you gather reflect that link between care and prosperity.'],
+['Krishna the Gopala','Gopala','Narrative','Mythological','story','seva:5','In traditional narratives Krishna grew up among cowherds in Vraja and is called Gopala and Govinda, names linked to tending cows. This is sacred storytelling, not a historical record.'],
+['Krishna Bhakti','Bhakti','Devotion','Devotional','prayer','day:3','Devotional traditions, drawing on texts such as the Bhagavata Purana, portray Krishna\'s tender love for his cows, inspiring devotees to see care as an expression of love.'],
+['Nandi','Nandi','Mythology','Mythological','read','seva:8','Nandi, the bull, is the vahana (mount) of Shiva and the gatekeeper at Shiva temples, where his statue faces the sanctum.'],
+['Ahimsa','Ahimsa','Ethics','Scriptural','refuse','water:2','Ahimsa means non-harm. Real care responds to what an animal actually needs. That is why the game refuses to let you force food or water on a content cow.'],
+['Gratitude','Kritajnata','Reflection','Cultural','reflect','seva:12','Cows give milk, dung for fuel and fertiliser, and bullocks\' labour. Gratitude (kritajnata) is one reason caring for them is encouraged.'],
+['Kamadhenu','Kamadhenu','Mythology','Mythological','story','day:4','Kamadhenu is the divine wish-fulfilling cow of Puranic stories, often said to have emerged at the churning of the ocean (Samudra Manthan). It is myth, a symbol of nourishing abundance.'],
+['Panchagavya','Panchagavya','Culture','Cultural','read','collect:6','Panchagavya refers to five cow products (milk, curd, ghee, dung and urine) used in traditional rituals and farming. Health claims for them are not established by modern medicine.'],
+['Uses of Cow Dung','Gomaya','Agriculture','Modern practice','clean','clean:3','Cow dung is traditionally used as manure, dung-cake fuel and floor plaster. Cleaning the shelter turns waste into a resource for farms.'],
+['Go-raksha','Go-raksha','Welfare','Cultural','heal','heal:1','Go-raksha means protecting cows. In this game it means compassionate care: food, water, shelter and medicine, and never harm to any being.'],
+['Vulnerable Beings','Ashraya','Welfare','Cultural','examine','examine:3','Calves, elders and sick animals depend on us most. Examining them often helps you notice needs early.'],
+['Gaushala','Gaushala','World','Modern practice','manage','seva:15','A gaushala is a shelter for cattle, often run by temples or charitable trusts, caring for old, abandoned or injured animals.'],
+['Selfless Seva','Nishkama Karma','Motivation','Scriptural','reflect','seva:20','The Bhagavad Gita (2.47) teaches acting without clinging to the fruits of action. Seva is offered because it is needed, not for a score.'],
+['Dharma','Dharma','Ethics','Scriptural','reflect','day:5','Dharma means right conduct and duty. Looking after those who depend on us, including animals, is understood as part of that duty.'],
+['Interconnectedness','Vasudhaiva Kutumbakam','Ecosystem','Cultural','ecosystem','seva:25','Cows, soil, crops and people form one web. Fodder grows from soil enriched by dung, and the cows fed on it nourish the people.'],
+['Compassion','Karuna','Core Principle','Cultural','all','seva:30','Karuna, compassion, is the heart of this game: noticing another being\'s need and responding with care. Every seva here begins there.']
+];
+const CONTENT = {
+ concepts: RAW.map((r, i) => ({id: 'cow_seva_' + String(i + 1).padStart(2, '0'), title: r[0], sanskrit: r[1], category: r[2], kind: r[3], activity: r[4], unlockCondition: r[5], learning: r[6]})),
+ activities: {
+  feed:{ico:'🌾',lab:'Offer hay'}, water:{ico:'💧',lab:'Give water'}, clean:{ico:'🧹',lab:'Clean shelter'},
+  groom:{ico:'🤲',lab:'Groom & comfort'}, examine:{ico:'🔍',lab:'Examine'}, heal:{ico:'💊',lab:'Give medicine'}
+ },
+ reflections: ['Which cow needed you most today, and how did you notice?','What does gratitude to a cow look like in daily life?','When did you hold back because care meant restraint?','How does tending others change how you see your own day?','What small act of compassion can you offer tomorrow?']
+};
+const ORDER = ['feed','water','clean','groom','examine','heal'];
+
+/* ============ CORE SERVICES ============ */
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const Bus = {h: {}, on(e, f){(this.h[e] = this.h[e] || []).push(f);}, emit(e, d){(this.h[e] || []).forEach(f => f(d));}};
+const Save = {
+ key: 'gauSeva.v1',
+ load(){try{const s = localStorage.getItem(this.key); const d = s ? JSON.parse(s) : null; return d && typeof d === 'object' ? d : null;}catch(e){return null;}},
+ write(d){try{localStorage.setItem(this.key, JSON.stringify(d)); return true;}catch(e){return false;}},
+ clear(){try{localStorage.removeItem(this.key);}catch(e){}}
+};
+const Audio_ = {
+ ctx: null,
+ beep(f, d){
+  if(!S.sound) return;
+  try{
+   this.ctx = this.ctx || new (window.AudioContext || window.webkitAudioContext)();
+   const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+   o.frequency.value = f; g.gain.value = 0.04; o.connect(g); g.connect(this.ctx.destination);
+   o.start(); o.stop(this.ctx.currentTime + (d || 0.1));
+  }catch(e){}
+ }
+};
+
+/* ============ GAME STATE ============ */
+// States: MENU, INTRO, PLAY, LEARN, PAUSE, DAYEND, ENCY
+const DAY_LEN = 90, W = 800, H = 500;
+const S = {state: 'BOOT', back: 'MENU', day: 1, dayTime: 0, daySeva: 0, counts: {}, discovered: [], bonds: {}, inv: {hay: 0, water: 0, medicine: 0},
+ sound: true, queue: [], focus: null, floaters: [], player: null, cows: [], stations: []};
+
+/* ============ ENTITIES & COMPONENTS ============ */
+function makeCow(name, age, x, y, c1, c2){
+ return {kind: 'cow', id: name.toLowerCase(), identity: {name, age, c1, c2},
+  pos: {x, y}, move: {vx: 0, vy: 0, face: 1}, zone: 52,
+  needs: {hunger: 75, thirst: 75, clean: 75, mood: 70},
+  health: {hp: 100, sick: false},
+  ai: {state: 'wander', t: 1, tx: x, ty: y}, mul: age === 'calf' ? 1.25 : age === 'elder' ? 1.1 : 1};
+}
+function newWorld(){
+ S.cows = [makeCow('Nandini','adult',250,270,'#f4efe4','#8b5a2b'), makeCow('Gauri','adult',470,300,'#f0e6d2','#4a4a4a'),
+           makeCow('Kapila','elder',620,250,'#d8b98a','#7a4a1e'), makeCow('Vatsa','calf',360,350,'#f6f1e7','#a0642a')];
+ S.stations = [
+  {kind: 'station', id: 'hay', item: 'hay', x: 110, y: 440, label: 'Hay store', ico: '🌾'},
+  {kind: 'station', id: 'trough', item: 'water', x: 400, y: 450, label: 'Water trough', ico: '💧'},
+  {kind: 'station', id: 'med', item: 'medicine', x: 700, y: 440, label: 'Medical station', ico: '💊'}];
+ S.player = {x: 400, y: 200, tx: null, ty: null, speed: 150};
+ S.focus = null; S.floaters = [];
+}
+function welfareOf(c){const n = c.needs; return 0.25 * n.hunger + 0.25 * n.thirst + 0.15 * n.clean + 0.15 * n.mood + 0.2 * c.health.hp;}
+function avgWelfare(){return S.cows.length ? S.cows.reduce((a, c) => a + welfareOf(c), 0) / S.cows.length : 0;}
+function inc(k){S.counts[k] = (S.counts[k] || 0) + 1;}
+function sevaTotal(){return ['feed','water','clean','groom','heal'].reduce((a, k) => a + (S.counts[k] || 0), 0);}
+
+/* ============ WELFARE SIMULATION ============ */
+const Welfare = {
+ update(dt){
+  for(const c of S.cows){
+   const n = c.needs, m = c.mul;
+   n.hunger = clamp(n.hunger - 0.8 * m * dt, 0, 100);
+   n.thirst = clamp(n.thirst - 1.0 * m * dt, 0, 100);
+   n.clean = clamp(n.clean - 0.45 * dt, 0, 100);
+   n.mood = clamp(n.mood - 0.3 * dt - ((n.hunger < 25 || n.thirst < 25) ? 0.8 * dt : 0), 0, 100);
+   if(S.day >= 3 && !c.health.sick && Math.random() < dt * 0.004 * m){c.health.sick = true; Bus.emit('sick', c);}
+   if(c.health.sick) c.health.hp = Math.max(25, c.health.hp - 0.7 * dt);
+   if(n.hunger < 15 || n.thirst < 15) c.health.hp = Math.max(25, c.health.hp - 0.5 * dt);
+   else if(!c.health.sick && n.hunger > 40 && n.thirst > 40) c.health.hp = Math.min(100, c.health.hp + 0.6 * dt);
+  }
+ }
+};
+
+/* ============ AI SYSTEM (finite-state machine) ============ */
+const AI = {
+ bounds: {x0: 50, x1: 750, y0: 130, y1: 400},
+ pick(c){
+  const a = c.ai, n = c.needs, st = id => S.stations.find(s => s.id === id), r = Math.random();
+  if(n.thirst < 35){a.state = 'seekWater'; const t = st('trough'); a.tx = t.x + (Math.random() - .5) * 80; a.ty = 395;}
+  else if(n.hunger < 35){a.state = 'seekFood'; const t = st('hay'); a.tx = t.x + (Math.random() - .5) * 80; a.ty = 395;}
+  else if(r < 0.35){a.state = 'rest'; a.tx = c.pos.x; a.ty = c.pos.y;}
+  else if(r < 0.65){a.state = 'graze'; a.tx = clamp(c.pos.x + (Math.random() - .5) * 60, this.bounds.x0, this.bounds.x1); a.ty = clamp(c.pos.y + (Math.random() - .5) * 60, this.bounds.y0, this.bounds.y1);}
+  else{a.state = 'wander'; a.tx = this.bounds.x0 + Math.random() * 700; a.ty = this.bounds.y0 + Math.random() * 270;}
+  a.t = 3 + Math.random() * 4;
+ },
+ update(dt){
+  for(const c of S.cows){
+   const a = c.ai, far = dist(c.pos, S.player) > 320; // simple AI/LOD throttle
+   a.t -= dt; a.acc = (a.acc || 0) + dt;
+   if(a.t <= 0) this.pick(c);
+   if(far && a.acc < 0.2) continue;
+   const step = a.acc; a.acc = 0;
+   const dx = a.tx - c.pos.x, dy = a.ty - c.pos.y, d = Math.hypot(dx, dy);
+   const sp = a.state === 'rest' ? 0 : a.state === 'graze' ? 10 : 24;
+   if(d > 3 && sp){c.move.vx = dx / d * sp; c.move.vy = dy / d * sp; c.move.face = dx >= 0 ? 1 : -1;}
+   else{c.move.vx = 0; c.move.vy = 0;}
+   c.pos.x += c.move.vx * step; c.pos.y += c.move.vy * step;
+  }
+  // collision: separate overlapping cows, keep inside field
+  for(let i = 0; i < S.cows.length; i++){
+   for(let j = i + 1; j < S.cows.length; j++){
+    const p = S.cows[i].pos, q = S.cows[j].pos, d = dist(p, q);
+    if(d > 0 && d < 40){const k = (40 - d) / 2 / d; p.x += (p.x - q.x) * k; p.y += (p.y - q.y) * k; q.x -= (p.x - q.x) * k; q.y -= (p.y - q.y) * k;}
+   }
+   const p = S.cows[i].pos; p.x = clamp(p.x, this.bounds.x0, this.bounds.x1); p.y = clamp(p.y, this.bounds.y0, this.bounds.y1 + 10);
+  }
+ }
+};
+
+/* ============ SEVA COMMANDS (rules validate; input never edits welfare directly) ============ */
+const no = (msg, refused) => ({ok: false, msg, refused: !!refused});
+const yes = msg => ({ok: true, msg});
+const Rules = {
+ feed(c){
+  if(S.inv.hay < 1) return no('Collect hay from the hay store first.');
+  if(c.needs.hunger > 85) return no(c.identity.name + ' is not hungry. Forcing food would not be care.', true);
+  S.inv.hay--; c.needs.hunger = Math.min(100, c.needs.hunger + 40); c.needs.mood = Math.min(100, c.needs.mood + 5);
+  return yes(c.identity.name + ' eats contentedly.');
+ },
+ water(c){
+  if(S.inv.water < 1) return no('Fetch water from the trough first.');
+  if(c.needs.thirst > 85) return no(c.identity.name + ' is not thirsty right now.', true);
+  S.inv.water--; c.needs.thirst = Math.min(100, c.needs.thirst + 45);
+  return yes(c.identity.name + ' drinks deeply.');
+ },
+ clean(c){
+  if(c.needs.clean > 85) return no(c.identity.name + '\'s resting place is already clean.', true);
+  c.needs.clean = Math.min(100, c.needs.clean + 45); c.needs.mood = Math.min(100, c.needs.mood + 3);
+  return yes('The shelter is fresh. The dung is set aside for the fields.');
+ },
+ groom(c){
+  if(c.needs.mood > 90) return no(c.identity.name + ' is calm and content already.', true);
+  c.needs.mood = Math.min(100, c.needs.mood + 18); c.needs.clean = Math.min(100, c.needs.clean + 5);
+  return yes(c.identity.name + ' leans into your gentle touch.');
+ },
+ examine(c){
+  const n = c.needs, k = Object.keys(n).reduce((a, b) => n[a] <= n[b] ? a : b);
+  const txt = c.health.sick ? 'seems unwell and needs medicine.' : 'is healthy. Lowest need: ' + k + ' (' + Math.round(n[k]) + '%).';
+  return yes(c.identity.name + ' ' + txt);
+ },
+ heal(c){
+  if(!c.health.sick) return no(c.identity.name + ' is healthy and needs no medicine.', true);
+  if(S.inv.medicine < 1) return no('Collect medicine from the medical station first.');
+  S.inv.medicine--; c.health.sick = false; c.health.hp = Math.min(100, c.health.hp + 20);
+  return yes(c.identity.name + ' is recovering.');
+ }
+};
+const Seva = {
+ run(type, cow){
+  if(S.state !== 'PLAY' || !Rules[type]) return false;
+  if(!cow || dist(S.player, cow.pos) > cow.zone + 12){toast('Walk closer to a cow first.'); return false;}
+  const r = Rules[type](cow);
+  toast(r.msg);
+  if(!r.ok){if(r.refused) inc('refused'); Audio_.beep(180, .12); return false;}
+  inc(type);
+  if(type !== 'examine'){S.daySeva++; S.bonds[cow.id] = (S.bonds[cow.id] || 0) + 1;}
+  S.floaters.push({x: cow.pos.x, y: cow.pos.y - 40, t: 1.2, txt: CONTENT.activities[type].ico});
+  Audio_.beep(type === 'water' ? 520 : 440, .12);
+  Bus.emit('seva', {type, cow});
+  return true;
+ },
+ collect(st){
+  if(S.state !== 'PLAY' || !st) return false;
+  if(dist(S.player, st) > 70){toast('Walk closer to the ' + st.label.toLowerCase() + '.'); return false;}
+  if(S.inv[st.item] >= 3){toast('You are already carrying enough ' + st.item + '.'); return false;}
+  S.inv[st.item]++; inc('collect');
+  S.floaters.push({x: S.player.x, y: S.player.y - 30, t: 1, txt: '+' + st.ico});
+  Audio_.beep(600, .08); toast('Collected ' + st.item + '.');
+  Bus.emit('collect', st);
+  return true;
+ }
+};
+
+/* ============ PROGRESSION / KNOWLEDGE ============ */
+function ruleMet(rule){
+ const p = rule.split(':'), k = p[0], n = +p[1] || 0;
+ if(k === 'start') return true;
+ if(k === 'day') return S.day >= n;
+ if(k === 'seva') return sevaTotal() >= n;
+ return (S.counts[k] || 0) >= n;
+}
+function checkUnlocks(){
+ for(const c of CONTENT.concepts){
+  if(!S.discovered.includes(c.id) && !S.queue.includes(c.id) && ruleMet(c.unlockCondition)) S.queue.push(c.id);
+ }
+ if(S.queue.length && S.state === 'PLAY') showLearn();
+}
+Bus.on('seva', checkUnlocks); Bus.on('collect', checkUnlocks);
+
+function snapshot(){return {day: S.day, counts: S.counts, discovered: S.discovered, bonds: S.bonds, inv: S.inv, sound: S.sound};}
+function persist(){Save.write(snapshot());}
+function applySave(d){
+ S.day = Math.max(1, +d.day || 1);
+ S.counts = d.counts && typeof d.counts === 'object' ? d.counts : {};
+ S.discovered = Array.isArray(d.discovered) ? d.discovered.filter(id => CONTENT.concepts.some(c => c.id === id)) : [];
+ S.bonds = d.bonds && typeof d.bonds === 'object' ? d.bonds : {};
+ const i = d.inv || {}; S.inv = {hay: clamp(+i.hay || 0, 0, 3), water: clamp(+i.water || 0, 0, 3), medicine: clamp(+i.medicine || 0, 0, 3)};
+ S.sound = d.sound !== false;
+}
+function resetProfile(){S.day = 1; S.counts = {}; S.discovered = []; S.bonds = {}; S.inv = {hay: 0, water: 0, medicine: 0}; S.daySeva = 0; S.dayTime = 0; S.queue = [];}
+
+/* ============ UI ============ */
+const ov = $('ov'), card = $('card');
+let toastTimer = 0;
+function toast(msg){const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 2200);}
+function panel(html, btns){
+ card.innerHTML = html;
+ const row = document.createElement('div'); row.className = 'row';
+ btns.forEach((b, i) => {const e = document.createElement('button'); e.textContent = b.t; if(i === 0) e.className = 'pri'; e.addEventListener('click', b.f); row.appendChild(e);});
+ card.appendChild(row); ov.hidden = false;
+ const f = row.querySelector('button'); if(f) f.focus();
+}
+function closePanel(){ov.hidden = true; card.innerHTML = '';}
+function esc(s){return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function showMenu(){
+ S.state = 'MENU';
+ const has = !!Save.load(), b = [];
+ if(has) b.push({t: 'Continue Journey', f: () => startGame(true)});
+ b.push({t: has ? 'New Journey' : 'Begin Journey', f: () => startGame(false)});
+ b.push({t: '📖 Encyclopedia', f: () => showEncy('MENU')});
+ b.push({t: S.sound ? '🔊 Sound: On' : '🔇 Sound: Off', f: () => {S.sound = !S.sound; persistIfAny(); showMenu();}});
+ panel('<h2>🐄 Gau Seva</h2><p>A calm simulation of daily care in a gaushala, with the cultural and spiritual context of cow seva in Hinduism woven into each step.</p><p><small>Your progress measures responsible care and learning, never spiritual merit. Myth, devotion, scripture and modern practice are labelled separately.</small></p>', b);
+}
+function persistIfAny(){if(Save.load()) persist();}
+function startGame(cont){
+ resetProfile();
+ if(cont){const d = Save.load(); if(d) applySave(d);} else Save.clear();
+ newWorld(); S.state = 'INTRO';
+ panel('<h2>Welcome to the Gaushala</h2><p>Four cows depend on you. Observe their needs (shown beside the field), then act:</p><p>1. Walk to a store and <b>collect</b> hay, water or medicine.<br>2. Walk to a cow and choose a seva action.<br>3. Each day lasts about 90 seconds. Learn as you go.</p><p>Care means meeting real needs, so over-offering is refused.</p>',
+  [{t: 'Begin Day ' + S.day, f: beginPlay}]);
+}
+function beginPlay(){closePanel(); S.state = 'PLAY'; S.dayTime = 0; S.daySeva = 0; persist(); checkUnlocks(); canvasFocus();}
+function canvasFocus(){try{$('cv').focus();}catch(e){}}
+
+function showLearn(){
+ const c = CONTENT.concepts.find(x => x.id === S.queue[0]);
+ if(!c){S.queue.shift(); return;}
+ S.state = 'LEARN';
+ panel('<span class="badge">' + esc(c.kind) + '</span><small>' + esc(c.category) + ' · Concept ' + c.id.slice(-2) + '/20</small><h2>' + esc(c.title) + '</h2><p class="sa">' + esc(c.sanskrit) + '</p><p>' + esc(c.learning) + '</p>',
+  [{t: 'Continue', f: () => {
+   S.discovered.push(S.queue.shift()); persist();
+   if(S.queue.length) showLearn(); else {closePanel(); S.state = 'PLAY'; canvasFocus();}
+  }}]);
+}
+function showEncy(back){
+ S.back = back; S.state = 'ENCY';
+ let h = '<h2>📖 Encyclopedia</h2><p><small>' + S.discovered.length + ' of 20 concepts discovered.</small></p>';
+ for(const c of CONTENT.concepts){
+  if(S.discovered.includes(c.id)) h += '<div class="ency"><span class="badge">' + esc(c.kind) + '</span><b>' + esc(c.title) + '</b> <span class="sa">' + esc(c.sanskrit) + '</span><p>' + esc(c.learning) + '</p></div>';
+  else h += '<div class="ency lock">🔒 <b>Locked concept</b> <small>· ' + esc(c.category) + '</small></div>';
+ }
+ panel(h, [{t: 'Back', f: () => back === 'MENU' ? showMenu() : showPause()}]);
+}
+function showPause(){
+ S.state = 'PAUSE';
+ panel('<h2>Paused</h2><p>Take a breath. The cows will wait.</p>', [
+  {t: 'Resume', f: () => {closePanel(); S.state = 'PLAY'; canvasFocus();}},
+  {t: '📖 Encyclopedia', f: () => showEncy('PAUSE')},
+  {t: S.sound ? '🔊 Sound: On' : '🔇 Sound: Off', f: () => {S.sound = !S.sound; persist(); showPause();}},
+  {t: 'Save & Main Menu', f: () => {persist(); showMenu();}}]);
+}
+function endDay(){
+ S.state = 'DAYEND';
+ const w = Math.round(avgWelfare()), needy = S.cows.filter(c => welfareOf(c) < 50).map(c => c.identity.name);
+ const refl = CONTENT.reflections[(S.day - 1) % CONTENT.reflections.length];
+ const chap = S.day === 5 ? '<p><b>Chapter 1 complete.</b> You may keep serving as long as you wish.</p>' : '';
+ const bonds = S.cows.map(c => esc(c.identity.name) + ' ' + '♥'.repeat(Math.min(5, Math.floor((S.bonds[c.id] || 0) / 6)) || 0) + (S.bonds[c.id] ? '' : '—')).join(' · ');
+ panel('<h2>Day ' + S.day + ' complete</h2><p>Herd welfare: <b>' + w + '%</b> · Seva today: <b>' + S.daySeva + '</b></p>' +
+  (needy.length ? '<p>Needing more attention: ' + esc(needy.join(', ')) + '.</p>' : '<p>All cows were well cared for.</p>') +
+  '<p><small>Bond: ' + bonds + '</small></p><p><i>Reflect: ' + esc(refl) + '</i></p>' + chap,
+  [{t: 'Begin Day ' + (S.day + 1), f: nextDay}, {t: 'Save & Main Menu', f: () => {nextDayState(); persist(); showMenu();}}]);
+}
+function nextDayState(){
+ S.day++; S.dayTime = 0; S.daySeva = 0;
+ for(const c of S.cows){const n = c.needs; n.hunger = Math.max(n.hunger, 55); n.thirst = Math.max(n.thirst, 55); n.clean = Math.max(n.clean, 55);}
+}
+function nextDay(){nextDayState(); persist(); closePanel(); S.state = 'PLAY'; checkUnlocks(); canvasFocus();}
+
+/* HUD + contextual action dock */
+const acts = $('acts'), info = $('info');
+const btn = {};
+ORDER.forEach((k, i) => {
+ const b = document.createElement('button'), a = CONTENT.activities[k];
+ b.textContent = a.ico + ' ' + a.lab + ' (' + (i + 1) + ')';
+ b.addEventListener('click', () => Seva.run(k, S.focus && S.focus.kind === 'cow' ? S.focus : null));
+ acts.appendChild(b); btn[k] = b;
+});
+const bCol = document.createElement('button'); bCol.addEventListener('click', () => Seva.collect(S.focus && S.focus.kind === 'station' ? S.focus : null)); acts.appendChild(bCol);
+let lastFocusKey = '';
+function updateDock(){
+ const f = S.focus, key = f ? f.id : '';
+ if(key !== lastFocusKey){
+  lastFocusKey = key;
+  ORDER.forEach(k => btn[k].hidden = !(f && f.kind === 'cow'));
+  bCol.hidden = !(f && f.kind === 'station');
+  if(f && f.kind === 'station') bCol.textContent = f.ico + ' Collect ' + f.item + ' (E)';
+ }
+ let h = '';
+ const bar = (l, v) => '<div class="need"><span>' + l + '</span><div class="bar"><i class="' + (v < 30 ? 'low' : '') + '" style="width:' + Math.round(v) + '%"></i></div></div>';
+ if(f && f.kind === 'cow'){
+  const n = f.needs;
+  h = '<b>' + esc(f.identity.name) + '</b> <small>' + f.identity.age + (f.health.sick ? ' · 🤒 unwell' : '') + ' · bond ' + (S.bonds[f.id] || 0) + '</small>' +
+   bar('Hunger', n.hunger) + bar('Thirst', n.thirst) + bar('Clean', n.clean) + bar('Mood', n.mood) + bar('Health', f.health.hp);
+ } else if(f){h = '<b>' + f.ico + ' ' + esc(f.label) + '</b><p><small>Collect supplies here, then carry them to the cows (up to 3 of each).</small></p>';}
+ else h = '<b>Observe</b><p><small>Walk near a cow or a store. Watch for 💧 🌾 🧹 🤒 bubbles above the cows.</small></p>';
+ info.innerHTML = h;
+}
+function updateHUD(){
+ $('cDay').textContent = 'Day ' + S.day;
+ $('cWel').textContent = 'Welfare ' + Math.round(avgWelfare()) + '%';
+ $('cSeva').textContent = 'Seva ' + sevaTotal();
+ $('cKnow').textContent = 'Knowledge ' + S.discovered.length + '/20';
+ $('cInv').textContent = '🌾' + S.inv.hay + ' 💧' + S.inv.water + ' 💊' + S.inv.medicine;
+ $('tbar').style.width = clamp(S.dayTime / DAY_LEN * 100, 0, 100) + '%';
+}
+
+/* ============ INPUT MANAGER → INTERACTION SYSTEM ============ */
+const keys = {};
+const Input = {
+ dir(){
+  const dx = (keys.arrowright || keys.d ? 1 : 0) - (keys.arrowleft || keys.a ? 1 : 0);
+  const dy = (keys.arrowdown || keys.s ? 1 : 0) - (keys.arrowup || keys.w ? 1 : 0);
+  return {dx, dy};
+ }
+};
+const Interaction = {
+ update(){
+  let best = null, bd = 1e9;
+  for(const c of S.cows){const d = dist(S.player, c.pos); if(d < c.zone && d < bd){best = c; bd = d;}}
+  if(!best) for(const s of S.stations){const d = dist(S.player, s); if(d < 70 && d < bd){best = s; bd = d;}}
+  S.focus = best;
+ }
+};
+addEventListener('keydown', e => {
+ const k = e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase();
+ if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k) && S.state === 'PLAY') e.preventDefault();
+ keys[k] = true;
+ if(k === 'p' || k === 'escape'){
+  if(S.state === 'PLAY') showPause();
+  else if(S.state === 'PAUSE'){closePanel(); S.state = 'PLAY';}
+  return;
+ }
+ if(S.state !== 'PLAY') return;
+ if(k >= '1' && k <= '6') Seva.run(ORDER[+k - 1], S.focus && S.focus.kind === 'cow' ? S.focus : null);
+ else if(k === 'e') Seva.collect(S.focus && S.focus.kind === 'station' ? S.focus : null);
+});
+addEventListener('keyup', e => {keys[e.key.toLowerCase()] = false;});
+addEventListener('blur', () => {for(const k in keys) keys[k] = false;});
+document.addEventListener('visibilitychange', () => {if(document.hidden && S.state === 'PLAY') showPause();});
+const cv = $('cv');
+cv.tabIndex = 0;
+cv.addEventListener('pointerdown', e => {
+ if(S.state !== 'PLAY') return;
+ const r = cv.getBoundingClientRect();
+ S.player.tx = clamp((e.clientX - r.left) * W / r.width, 14, W - 14);
+ S.player.ty = clamp((e.clientY - r.top) * H / r.height, 80, H - 14);
+});
+$('bPause').addEventListener('click', () => {if(S.state === 'PLAY') showPause();});
+$('bEncy').addEventListener('click', () => {if(S.state === 'PLAY') {showEncy('PAUSE');}});
+
+/* ============ RENDERING SYSTEM ============ */
+const dpr = Math.min(2, window.devicePixelRatio || 1);
+cv.width = W * dpr; cv.height = H * dpr;
+const g = cv.getContext('2d');
+if(g) g.setTransform(dpr, 0, 0, dpr, 0, 0);
+function ell(x, y, rx, ry, col){g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 7); g.fill();}
+function rect(x, y, w, h, col){g.fillStyle = col; g.fillRect(x, y, w, h);}
+function drawCow(c){
+ const {x, y} = c.pos, f = c.move.face, s = c.identity.age === 'calf' ? 0.7 : 1;
+ ell(x, y + 18 * s, 26 * s, 7 * s, 'rgba(0,0,0,.2)');
+ g.fillStyle = '#5a4a3a';
+ [-14, -5, 7, 16].forEach(o => g.fillRect(x + o * s - 2, y + 6 * s, 4 * s, 13 * s));
+ ell(x, y, 26 * s, 15 * s, c.identity.c1);
+ ell(x - 8 * s * f, y - 3 * s, 8 * s, 6 * s, c.identity.c2);
+ ell(x + 8 * s * f, y + 4 * s, 6 * s, 5 * s, c.identity.c2);
+ ell(x + 27 * s * f, y - 6 * s, 9 * s, 8 * s, c.identity.c1);
+ ell(x + 31 * s * f, y - 3 * s, 5 * s, 4 * s, '#e8b9a0');
+ rect(x + 24 * s * f - 1, y - 16 * s, 3, 5 * s, '#e9e2cf');
+ g.fillStyle = '#222'; g.fillRect(x + 27 * s * f, y - 9 * s, 2, 2);
+ const n = c.needs, ico = c.health.sick ? '🤒' : n.thirst < 35 ? '💧' : n.hunger < 35 ? '🌾' : n.clean < 30 ? '🧹' : '';
+ if(ico){g.font = '18px serif'; g.textAlign = 'center'; g.fillText(ico, x, y - 28 * s);}
+ g.font = '11px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#1b1b1b'; g.fillText(c.identity.name, x, y + 34 * s);
+}
+function render(){
+ if(!g) return;
+ g.clearRect(0, 0, W, H);
+ const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#a6d684'); gr.addColorStop(1, '#78b25a');
+ g.fillStyle = gr; g.fillRect(0, 0, W, H);
+ rect(0, 410, W, 8, '#b99a6a'); // path
+ // shelter
+ rect(30, 30, 220, 100, '#d9c49a'); rect(24, 22, 232, 16, '#8b5a2b'); rect(40, 60, 190, 60, '#c4ac7c');
+ g.font = '11px sans-serif'; g.textAlign = 'left'; g.fillStyle = '#3a2a14'; g.fillText('Shelter', 40, 52);
+ // temple
+ rect(660, 60, 80, 55, '#f3e3c3'); g.fillStyle = '#e07a1f'; g.beginPath(); g.moveTo(655, 62); g.lineTo(700, 14); g.lineTo(745, 62); g.fill();
+ rect(692, 88, 16, 27, '#6a3d1a'); g.fillStyle = '#3a2a14'; g.fillText('Temple', 680, 130);
+ // trees
+ [[330, 70],[520, 90],[590, 340]].forEach(t => {rect(t[0] - 4, t[1], 8, 26, '#6b4a2a'); ell(t[0], t[1] - 6, 26, 22, '#3f8a3f');});
+ // stations
+ for(const s of S.stations){
+  ell(s.x, s.y + 6, 34, 18, s.id === 'trough' ? '#5aa8d6' : s.id === 'hay' ? '#d9b84a' : '#e8e0d0');
+  g.font = '22px serif'; g.textAlign = 'center'; g.fillText(s.ico, s.x, s.y + 12);
+  g.font = '11px sans-serif'; g.fillStyle = '#1b1b1b'; g.fillText(s.label, s.x, s.y + 38);
+ }
+ // entities sorted by y
+ const list = S.cows.map(c => ({y: c.pos.y, f: () => drawCow(c)}));
+ const p = S.player;
+ if(p) list.push({y: p.y, f: () => {
+  ell(p.x, p.y + 14, 11, 4, 'rgba(0,0,0,.25)'); rect(p.x - 7, p.y - 6, 14, 20, '#e07a1f'); ell(p.x, p.y - 12, 7, 7, '#c68a5a');
+  g.font = '12px serif'; g.textAlign = 'center'; g.fillText((S.inv.hay ? '🌾' : '') + (S.inv.water ? '💧' : '') + (S.inv.medicine ? '💊' : ''), p.x, p.y - 24);
+ }});
+ list.sort((a, b) => a.y - b.y).forEach(o => o.f());
+ // focus ring
+ if(S.focus){const fp = S.focus.pos || S.focus; g.strokeStyle = '#fff'; g.lineWidth = 2; g.setLineDash([5, 4]); g.beginPath(); g.ellipse(fp.x, fp.y + 6, 44, 28, 0, 0, 7); g.stroke(); g.setLineDash([]);}
+ for(const fl of S.floaters){g.globalAlpha = clamp(fl.t, 0, 1); g.font = '20px serif'; g.textAlign = 'center'; g.fillText(fl.txt, fl.x, fl.y - (1.2 - fl.t) * 24); g.globalAlpha = 1;}
+ // dusk tint
+ const dp = S.dayTime / DAY_LEN; if(dp > 0.75){g.fillStyle = 'rgba(30,20,70,' + ((dp - 0.75) * 1.2).toFixed(3) + ')'; g.fillRect(0, 0, W, H);}
+}
+
+/* ============ MAIN LOOP: Input → Update → AI → Gameplay → Render ============ */
+function update(dt){
+ const p = S.player, {dx, dy} = Input.dir();
+ let mx = dx, my = dy;
+ if(dx || dy){p.tx = null; p.ty = null; const l = Math.hypot(dx, dy); mx = dx / l; my = dy / l;}
+ else if(p.tx != null){const ddx = p.tx - p.x, ddy = p.ty - p.y, d = Math.hypot(ddx, ddy); if(d < 4){p.tx = null; p.ty = null; mx = 0; my = 0;} else{mx = ddx / d; my = ddy / d;}}
+ p.x = clamp(p.x + mx * p.speed * dt, 14, W - 14); p.y = clamp(p.y + my * p.speed * dt, 80, H - 14);
+ Interaction.update();
+ Welfare.update(dt);
+ AI.update(dt);
+ S.floaters = S.floaters.filter(f => (f.t -= dt) > 0);
+ S.dayTime += dt;
+ if(S.dayTime >= DAY_LEN) endDay();
+}
+let last = 0, hudT = 0;
+function frame(t){
+ const dt = Math.min(0.05, Math.max(0, (t - last) / 1000) || 0); last = t;
+ try{
+  if(S.state === 'PLAY') update(dt);
+  hudT += dt; if(hudT > 0.15 || S.state !== 'PLAY'){hudT = 0; updateHUD(); updateDock();}
+  render();
+ }catch(err){console.error(err);}
+ requestAnimationFrame(frame);
+}
+
+/* ============ BOOT ============ */
+(function boot(){
+ const d = Save.load(); if(d) applySave(d);
+ newWorld(); resetKeep();
+ showMenu();
+ requestAnimationFrame(frame);
+ function resetKeep(){S.dayTime = 0; S.daySeva = 0; S.queue = [];}
+})();
+
+// Minimal hook for automated testing / debugging
+window.GauSeva = {S, Seva, Rules, CONTENT, Welfare, AI, Save, checkUnlocks, startGame, update, ruleMet, beginPlay, endDay, nextDay};
+})();
+</script>
+</body>
+</html>
